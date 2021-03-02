@@ -2,7 +2,7 @@
 	"name": "vscode-eslint",
 	"displayName": "ESLint",
 	"description": "Integrates ESLint JavaScript into VS Code.",
-	"version": "2.1.12",
+	"version": "2.1.14",
 	"author": "Microsoft Corporation",
 	"license": "MIT",
 	"repository": {
@@ -22,7 +22,7 @@
 		"multi-root ready"
 	],
 	"engines": {
-		"vscode": "^1.50.0"
+		"vscode": "^1.53.0"
 	},
 	"activationEvents": [
 		"onStartupFinished"
@@ -70,7 +70,7 @@
 					"description": "The value of NODE_ENV to use when running eslint tasks."
 				},
 				"eslint.nodePath": {
-					"scope": "resource",
+					"scope": "machine-overridable",
 					"type": [
 						"string",
 						"null"
@@ -460,16 +460,16 @@
 	},
 	"devDependencies": {
 		"@types/node": "^12.12.6",
-		"typescript": "^3.8.3",
-		"eslint": "^6.8.0",
-		"@typescript-eslint/parser": "^2.31.0",
-		"@typescript-eslint/eslint-plugin": "^3.6.0",
-		"webpack": "^4.44.1",
-		"webpack-cli": "^3.3.12",
-		"ts-loader": "^6.2.1",
-		"merge-options": "^2.0.0",
+		"typescript": "^4.1.2",
+		"eslint": "^7.15.0",
+		"@typescript-eslint/parser": "^4.9.1",
+		"@typescript-eslint/eslint-plugin": "^4.9.1",
+		"webpack": "^5.10.0",
+		"webpack-cli": "^4.2.0",
+		"ts-loader": "^8.0.11",
+		"merge-options": "^3.0.4",
 		"rimraf": "^3.0.2",
-		"@types/mocha": "^7.0.2",
-		"mocha": "^7.1.2"
+		"@types/mocha": "^8.0.4",
+		"mocha": "^8.2.1"
 	}
 }

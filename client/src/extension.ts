@@ -16,7 +16,7 @@ import {
 	LanguageClient, LanguageClientOptions, RequestType, TransportKind, TextDocumentIdentifier, NotificationType, ErrorHandler,
 	ErrorAction, CloseAction, State as ClientState, RevealOutputChannelOn, VersionedTextDocumentIdentifier, ExecuteCommandRequest,
 	ExecuteCommandParams, ServerOptions, DocumentFilter, DidCloseTextDocumentNotification, DidOpenTextDocumentNotification,
-	WorkspaceFolder, DidChangeConfigurationNotification
+	WorkspaceFolder, DidChangeConfigurationNotification, NotificationType0
 } from 'vscode-languageclient/node';
 
 import { findEslint, convert2RegExp, toOSPath, toPosixPath, Semaphore } from './utils';
@@ -126,7 +126,10 @@ enum CodeActionsOnSaveMode {
 }
 
 namespace CodeActionsOnSaveMode {
-	export function from(value: string): CodeActionsOnSaveMode {
+	export function from(value: string | undefined | null): CodeActionsOnSaveMode {
+		if (value === undefined || value === null) {
+			return CodeActionsOnSaveMode.all;
+		}
 		switch(value.toLowerCase()) {
 			case CodeActionsOnSaveMode.problems:
 				return CodeActionsOnSaveMode.problems;
@@ -154,7 +157,10 @@ enum ESLintSeverity {
 }
 
 namespace ESLintSeverity {
-	export function from(value: string): ESLintSeverity {
+	export function from(value: string | undefined | null): ESLintSeverity {
+		if (value === undefined || value === null) {
+			return ESLintSeverity.off;
+		}
 		switch (value.toLowerCase()) {
 			case ESLintSeverity.off:
 				return ESLintSeverity.off;
@@ -210,7 +216,7 @@ interface StatusParams {
 }
 
 namespace StatusNotification {
-	export const type = new NotificationType<StatusParams, void>('eslint/status');
+	export const type = new NotificationType<StatusParams>('eslint/status');
 }
 
 interface NoConfigParams {
@@ -222,7 +228,7 @@ interface NoConfigResult {
 }
 
 namespace NoConfigRequest {
-	export const type = new RequestType<NoConfigParams, NoConfigResult, void, void>('eslint/noConfig');
+	export const type = new RequestType<NoConfigParams, NoConfigResult, void>('eslint/noConfig');
 }
 
 
@@ -234,7 +240,7 @@ interface NoESLintLibraryResult {
 }
 
 namespace NoESLintLibraryRequest {
-	export const type = new RequestType<NoESLintLibraryParams, NoESLintLibraryResult, void, void>('eslint/noLibrary');
+	export const type = new RequestType<NoESLintLibraryParams, NoESLintLibraryResult, void>('eslint/noLibrary');
 }
 
 interface OpenESLintDocParams {
@@ -246,7 +252,7 @@ interface OpenESLintDocResult {
 }
 
 namespace OpenESLintDocRequest {
-	export const type = new RequestType<OpenESLintDocParams, OpenESLintDocResult, void, void>('eslint/openDoc');
+	export const type = new RequestType<OpenESLintDocParams, OpenESLintDocResult, void>('eslint/openDoc');
 }
 
 interface ProbeFailedParams {
@@ -254,7 +260,7 @@ interface ProbeFailedParams {
 }
 
 namespace ProbeFailedRequest {
-	export const type = new RequestType<ProbeFailedParams, void, void, void>('eslint/probeFailed');
+	export const type = new RequestType<ProbeFailedParams, void, void>('eslint/probeFailed');
 }
 
 interface ESLintExecutionState {
@@ -293,11 +299,14 @@ namespace ConfirmExecutionResult {
 }
 
 namespace ConfirmExecution {
-	export const type = new RequestType<ConfirmExecutionParams, ConfirmExecutionResult, void, void>('eslint/confirmESLintExecution');
+	export const type = new RequestType<ConfirmExecutionParams, ConfirmExecutionResult, void>('eslint/confirmESLintExecution');
 }
 
-const exitCalled = new NotificationType<[number, string], void>('eslint/exitCalled');
+namespace ShowOutputChannel {
+	export const type = new NotificationType0('eslint/showOutputChannel');
+}
 
+const exitCalled = new NotificationType<[number, string]>('eslint/exitCalled');
 
 interface WorkspaceFolderItem extends QuickPickItem {
 	folder: VWorkspaceFolder;
@@ -492,7 +501,7 @@ function clearAllDiagnosticState(): void {
 async function askForLibraryConfirmation(client: LanguageClient | undefined, context: ExtensionContext, params: ExecutionParams, update: undefined | (()=> void)): Promise<void> {
 	sessionState.set(params.libraryPath, params);
 
-	// Reevaluate state and cancel since the information meessage is async
+	// Reevaluate state and cancel since the information message is async
 	const libraryUri = Uri.file(params.libraryPath);
 	const folder = Workspace.getWorkspaceFolder(libraryUri);
 
@@ -597,6 +606,9 @@ async function resetLibraryConfirmations(client: LanguageClient | undefined, con
 }
 
 export function activate(context: ExtensionContext) {
+	context.globalState.setKeysForSync([
+		eslintAlwaysAllowExecutionKey
+	]);
 	eslintExecutionState =  context.globalState.get<ESLintExecutionState>(eslintExecutionKey, { libs: {} });
 	eslintAlwaysAllowExecutionState = context.globalState.get<boolean>(eslintAlwaysAllowExecutionKey, false);
 
@@ -631,7 +643,14 @@ export function activate(context: ExtensionContext) {
 	const openListener: Disposable = Workspace.onDidOpenTextDocument(didOpenTextDocument);
 	const configurationListener: Disposable = Workspace.onDidChangeConfiguration(configurationChanged);
 
-	const notValidating = () => Window.showInformationMessage('ESLint is not running. By default only TypeScript and JavaScript files are validated. If you want to validate other file types please specify them in the \'eslint.probe\' setting.');
+	const notValidating = () => {
+		const enabled = Workspace.getConfiguration('eslint', Window.activeTextEditor?.document).get('enable', true);
+		if (!enabled) {
+			Window.showInformationMessage(`ESLint is not running because the deprecated setting 'eslint.enable' is set to false. Remove the setting and use the extension disablement feature.`);
+		} else {
+			Window.showInformationMessage('ESLint is not running. By default only TypeScript and JavaScript files are validated. If you want to validate other file types please specify them in the \'eslint.probe\' setting.');
+		}
+	};
 	onActivateCommands = [
 		Commands.registerCommand('eslint.executeAutofix', notValidating),
 		Commands.registerCommand('eslint.showOutputChannel', notValidating),
@@ -994,7 +1013,7 @@ function realActivate(context: ExtensionContext): void {
 		let icon: string| undefined;
 		let tooltip: string | undefined;
 		let text: string = 'ESLint';
-		let color: ThemeColor | undefined;
+		let backgroundColor: ThemeColor | undefined;
 		switch (status) {
 			case Status.ok:
 				icon = eslintAlwaysAllowExecutionState ? '$(check-all)' : '$(check)';
@@ -1015,7 +1034,7 @@ function realActivate(context: ExtensionContext): void {
 				break;
 			case Status.confirmationPending:
 				icon = '$(circle-slash)';
-				color = new ThemeColor('errorForeground');
+				backgroundColor = new ThemeColor('errorBackground');
 				text = 'ESLINT';
 				tooltip = 'ESLint execution is not approved or denied yet.\nClick to open approval dialog.';
 				break;
@@ -1023,7 +1042,7 @@ function realActivate(context: ExtensionContext): void {
 				icon = eslintAlwaysAllowExecutionState ? '$(check-all)' : '$(check)';
 		}
 		statusBarItem.text = icon ? `${icon} ${text}` : text;
-		statusBarItem.color = color;
+		statusBarItem.backgroundColor = backgroundColor;
 		statusBarItem.tooltip = tooltip ? tooltip : serverRunning === undefined ? starting : serverRunning === true ? running : stopped;
 		const alwaysShow = Workspace.getConfiguration('eslint').get('alwaysShowStatus', false);
 		if (alwaysShow || eslintAlwaysAllowExecutionState === true || status !== Status.ok || (status === Status.ok && isValidated)) {
@@ -1214,10 +1233,7 @@ function realActivate(context: ExtensionContext): void {
 		}
 	}
 
-	// We need to go one level up since an extension compile the js code into
-	// the output folder.
-	// serverModule
-	const serverModule = context.asAbsolutePath(path.join('server', 'out', 'eslintServer.js'));
+	const serverModule = Uri.joinPath(context.extensionUri, 'server', 'out', 'eslintServer.js').fsPath;
 	const eslintConfig = Workspace.getConfiguration('eslint');
 	const runtime = eslintConfig.get('runtime', undefined);
 	const debug = eslintConfig.get('debug');
@@ -1549,7 +1565,7 @@ function realActivate(context: ExtensionContext): void {
 			if (computeValidate(textDocument) === Validate.off) {
 				try {
 					const provider = client.getFeature(DidCloseTextDocumentNotification.method).getProvider(textDocument);
-					provider.send(textDocument);
+					provider?.send(textDocument);
 				} catch (err) {
 					// A feature currently throws if no provider can be found. So for now we catch the exception.
 				}
@@ -1559,7 +1575,7 @@ function realActivate(context: ExtensionContext): void {
 			if (!syncedDocuments.has(textDocument.uri.toString()) && computeValidate(textDocument) !== Validate.off) {
 				try {
 					const provider = client.getFeature(DidOpenTextDocumentNotification.method).getProvider(textDocument);
-					provider.send(textDocument);
+					provider?.send(textDocument);
 				} catch (err) {
 					// A feature currently throws if no provider can be found. So for now we catch the exception.
 				}
@@ -1582,6 +1598,10 @@ function realActivate(context: ExtensionContext): void {
 		updateStatusBar(globalStatus ?? serverRunning === false ? Status.error : Status.ok, true);
 	});
 	client.onReady().then(() => {
+		client.onNotification(ShowOutputChannel.type, () => {
+			client.outputChannel.show();
+		});
+
 		client.onNotification(StatusNotification.type, (params) => {
 			updateStatusInfo(params);
 			updateStatusBarAndDiagnostics();
@@ -1590,7 +1610,11 @@ function realActivate(context: ExtensionContext): void {
 		client.onNotification(exitCalled, (params) => {
 			serverCalledProcessExit = true;
 			client.error(`Server process exited with code ${params[0]}. This usually indicates a misconfigured ESLint setup.`, params[1]);
-			Window.showErrorMessage(`ESLint server shut down itself. See 'ESLint' output channel for details.`);
+			Window.showErrorMessage(`ESLint server shut down itself. See 'ESLint' output channel for details.`, { title: 'Open Output', id: 1}).then((value) => {
+				if (value !== undefined && value.id === 1) {
+					client.outputChannel.show();
+				}
+			});
 		});
 
 		client.onRequest(NoConfigRequest.type, (params) => {
@@ -1706,7 +1730,7 @@ function realActivate(context: ExtensionContext): void {
 			const closeFeature = client.getFeature(DidCloseTextDocumentNotification.method);
 			for (const document of Workspace.textDocuments) {
 				if (document.uri.toString() === params.textDocument.uri) {
-					closeFeature.getProvider(document).send(document);
+					closeFeature.getProvider(document)?.send(document);
 				}
 			}
 		});
@@ -1788,7 +1812,7 @@ function realActivate(context: ExtensionContext): void {
 					'ESLint is disabled since its execution has not been approved or rejected yet.',
 					'',
 					'When validating a file using ESLint, the ESLint NPM library will load customization files and code from your workspace',
-					'and will exexute it. If you do not trust the content in your workspace you should answer accordingly on the corresponding',
+					'and will execute it. If you do not trust the content in your workspace you should answer accordingly on the corresponding',
 					'approval dialog.'
 				].join('\n');
 			}
@@ -1855,7 +1879,7 @@ function realActivate(context: ExtensionContext): void {
 					return;
 				}
 			}
-			await resetLibraryConfirmations(client, context, updateStatusBarAndDiagnostics);
+			client.outputChannel.show();
 		}),
 		Commands.registerCommand('eslint.migrateSettings', () => {
 			migrateSettings();

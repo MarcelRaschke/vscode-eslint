@@ -1,3 +1,16 @@
+### 2.1.14
+
+- Update to version 7.0.0 of the LSP libraries
+- Various [bug fixes](https://github.com/microsoft/vscode-eslint/issues?q=is%3Aissue+is%3Aclosed+milestone%3A2.1.14).
+
+### 2.1.13
+
+- [v2.1.10 - Extension 'ESlint' cannot format file](https://github.com/microsoft/vscode-eslint/issues/1086)
+
+### 2.1.11 & 2.1.12
+
+- Internal insider release.
+
 ### 2.1.10
 
 - Add an 'Always Allow' to the library confirmation dialog added in 2.1.7. Also added a status indication show the ESLint library decision mode.
