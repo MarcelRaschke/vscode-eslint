@@ -8,5 +8,13 @@
     "eslint-plugin-html": "^6.0.0",
     "eslint-plugin-vue": "^6.0.1",
     "vue-eslint-parser": "^7.0.0"
+  },
+  "scripts": {
+    "prepublish": "npm run snyk-protect",
+    "snyk-protect": "snyk-protect"
+  },
+  "snyk": true,
+  "dependencies": {
+    "@snyk/protect": "latest"
   }
 }
